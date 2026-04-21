@@ -3,7 +3,7 @@ import { addToCart, getCart, quickAdd, removeFromCart, updateCartItem, type Cart
 import { getCurbsideSlots, getDeliverySlots, reserveSlot, type FulfillmentSlot, type ReserveSlotResult, type GetCurbsideSlotsOptions, type GetDeliverySlotsOptions } from './fulfillment.js';
 import { getHomepage, type HomepageData } from './homepage.js';
 import { getOrder, getOrders, type GetOrdersOptions, type OrderDetailsResponse, type OrderHistoryResponse } from './orders.js';
-import { getProductDetails, getProductImageUrl, getProductSkuId, type Product, type GetProductOptions } from './product.js';
+import { getProductDetails, getProductImageBytes, getProductImageUrl, getProductSkuId, withImageSize, type GetProductImageBytesOptions, type Product, type ProductImage, type GetProductOptions } from './product.js';
 import { getBuyItAgain, searchProducts, typeahead, type SearchOptions, type SearchResult, type TypeaheadResult } from './search.js';
 import { getSessionInfo, isSessionValid } from './session.js';
 import { getShoppingList, getShoppingLists, type GetShoppingListOptions, type ShoppingListDetails, type ShoppingListsResult } from './shopping-list.js';
@@ -147,6 +147,33 @@ export class HEBClient {
    */
   getImageUrl(productId: string, size?: number): string {
     return getProductImageUrl(productId, size);
+  }
+
+  /**
+   * Fetch product image bytes from the HEB CDN.
+   *
+   * Resolves the real carousel URL from product details (the deterministic
+   * `/HEBGrocery/<id>` URL returns a placeholder logo for most IDs — the
+   * actual asset lives at `/HEBGrocery/<zero-padded-id>-<n>`).
+   *
+   * Pass `options.url` to skip the lookup and fetch a specific URL directly.
+   *
+   * @example
+   * const img = await heb.getProductImage('1875945', { size: 500 });
+   * await fs.writeFile('rolls.jpg', img.bytes);
+   */
+  async getProductImage(productId: string, options?: GetProductImageBytesOptions): Promise<ProductImage> {
+    if (options?.url) {
+      return getProductImageBytes(productId, options);
+    }
+    const product = await getProductDetails(this.session, productId, { includeImages: true });
+    const resolved = product.imageUrl ?? product.images?.[0];
+    if (!resolved) {
+      throw new Error(`No image URL found for product ${productId}`);
+    }
+    const size = options?.size;
+    const url = size ? withImageSize(resolved, size) : resolved;
+    return getProductImageBytes(productId, { ...options, url });
   }
 
   // ─────────────────────────────────────────────────────────────
