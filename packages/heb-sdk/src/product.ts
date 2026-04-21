@@ -143,6 +143,61 @@ export function getProductImageUrl(productId: string, size = 360): string {
 }
 
 /**
+ * Override the `hei`/`wid` query params on an HEB CDN image URL.
+ * Leaves the path (e.g. `/HEBGrocery/000931316-1`) untouched.
+ */
+export function withImageSize(url: string, size: number): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.set("hei", String(size));
+    u.searchParams.set("wid", String(size));
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+export interface ProductImage {
+  bytes: Uint8Array;
+  contentType: string;
+  url: string;
+}
+
+export interface GetProductImageBytesOptions {
+  /** Image dimensions (default 360). Ignored when `url` is provided. */
+  size?: number;
+  /** Override URL (e.g. one from `product.images`). Skips URL construction. */
+  url?: string;
+}
+
+/**
+ * Fetch the bytes of a product image from the HEB CDN.
+ * No session required — HEB product images are publicly served.
+ *
+ * @example
+ * const img = await getProductImageBytes('1875945', { size: 500 });
+ * await fs.writeFile('rolls.jpg', img.bytes);
+ */
+export async function getProductImageBytes(
+  productId: string,
+  options: GetProductImageBytesOptions = {},
+): Promise<ProductImage> {
+  const url = options.url ?? getProductImageUrl(productId, options.size);
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(
+      `Product image fetch failed: ${res.status} ${res.statusText} (${url})`,
+    );
+  }
+  const buf = await res.arrayBuffer();
+  return {
+    bytes: new Uint8Array(buf),
+    contentType: res.headers.get("content-type") ?? "image/jpeg",
+    url,
+  };
+}
+
+/**
  * Format a product for list display (e.g. search results).
  */
 export function formatProductListItem(p: Product, index: number): string {

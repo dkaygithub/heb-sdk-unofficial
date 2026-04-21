@@ -26,13 +26,16 @@ export {
 // ─────────────────────────────────────────────────────────────
 export {
     getProductDetails,
+    getProductImageBytes,
     getProductImageUrl,
     getProductSkuId,
     formatProductListItem,
     formatProductDetails,
     type FulfillmentInfo,
+    type GetProductImageBytesOptions,
     type NutritionInfo,
     type Product,
+    type ProductImage,
     type ProductPrice
 } from './product';
 
@@ -77,6 +80,16 @@ export {
     type DisplayPrice,
     type PaymentGroup
 } from './cart';
+
+// ─────────────────────────────────────────────────────────────
+// Checkout
+// ─────────────────────────────────────────────────────────────
+export {
+    checkoutCart,
+    commitCheckout,
+    type CheckoutResult,
+    type CommitCheckoutResult
+} from './checkout';
 
 // ─────────────────────────────────────────────────────────────
 // Orders
