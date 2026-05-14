@@ -401,7 +401,7 @@ Returns structuredContent: { query, count, total_count, page, has_more, facets, 
           return buildToolResponse(`No products found for "${query}"`, data, response_format);
         }
 
-        const formatted = products.map((p, i) => formatter.productListItem(p, i)).join('\n');
+        const formatted = products.map((p: any, i: number) => formatter.productListItem(p, i)).join('\n');
 
         return buildToolResponse(
           `Found ${products.length} products:\n\n${formatted}`,
@@ -474,7 +474,7 @@ Returns structuredContent: { count, total_count, page, has_more, facets, items[]
           return buildToolResponse('No "Buy It Again" products found.', data, response_format);
         }
 
-        const formatted = products.map((p, i) => formatter.productListItem(p, i)).join('\n');
+        const formatted = products.map((p: any, i: number) => formatter.productListItem(p, i)).join('\n');
 
         return buildToolResponse(
           `Found ${products.length} "Buy It Again" products:\n\n${formatted}`,
