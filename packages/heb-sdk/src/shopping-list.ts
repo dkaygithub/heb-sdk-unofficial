@@ -5,6 +5,7 @@
  */
 
 import { persistedQuery } from './api.js';
+import { logDebug } from './logger.js';
 import type { HEBSession } from './types.js';
 import { formatSlotDate, formatCurrency } from './utils.js';
 
