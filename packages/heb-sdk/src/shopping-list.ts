@@ -441,3 +441,97 @@ export function formatShoppingList(list: ShoppingListDetails): string {
 
   return `**${list.name}** (${list.items.length} items)\n\n${itemsList}`;
 }
+
+// ─────────────────────────────────────────────────────────────
+// New mutation: add item to shopping list
+// ─────────────────────────────────────────────────────────────
+
+/** Raw response shape for add‑item‑to‑shopping‑list mutation */
+interface RawAddItemToListResponse {
+  addItemToShoppingListV2?: {
+    __typename?: string;
+    id?: string;
+    items?: Array<{
+      id: string;
+      productId: string;
+      skuId?: string;
+      quantity: number;
+      note?: string;
+    }>;
+    // Possible error shape (mirrors cart errors)
+    code?: string;
+    message?: string;
+  };
+}
+
+/** Add or update a product in a shopping list.
+ *
+ * @param session    Active HEB session
+ * @param listId     Shopping list ID
+ * @param productId  HEB product ID
+ * @param quantity   Desired quantity (0 to remove)
+ * @param skuId      Optional SKU ID
+ * @returns Updated ShoppingListDetails (full list)
+ */
+export async function addItemToShoppingList(
+  session: HEBSession,
+  listId: string,
+  productId: string,
+  quantity: number,
+  skuId?: string
+): Promise<ShoppingListDetails> {
+  // Log request start
+  logDebug(session, 'addItemToShoppingList start', {
+    listId,
+    productId,
+    quantity,
+    skuId,
+  });
+
+  const variables: any = {
+    input: {
+      listId,
+      productId,
+      quantity,
+      ...(skuId ? { skuId } : {}),
+    },
+  };
+
+  const response = await persistedQuery<RawAddItemToListResponse>(
+    session,
+    'addItemToShoppingListV2',
+    variables
+  );
+
+  // Handle GraphQL errors
+  if (response.errors?.length) {
+    const errMsg = response.errors.map(e => e.message).join(', ');
+    logDebug(session, 'addItemToShoppingList error', { errMsg });
+    throw new Error(`Failed to add item to shopping list: ${errMsg}`);
+  }
+
+  const result = response.data?.addItemToShoppingListV2;
+  if (!result) {
+    logDebug(session, 'addItemToShoppingList no result', {});
+    throw new Error('No response from addItemToShoppingList mutation');
+  }
+
+  // Detect error shape returned from backend
+  if ((result as any).code) {
+    const err = result as any;
+    logDebug(session, 'addItemToShoppingList backend error', {
+      code: err.code,
+      message: err.message,
+    });
+    throw new Error(`Shopping‑list error ${err.code}: ${err.message}`);
+  }
+
+  // On success, fetch the fresh full list to keep formatting consistent
+  const refreshed = await getShoppingList(session, listId);
+  logDebug(session, 'addItemToShoppingList success', {
+    itemCount: refreshed.items.length,
+  });
+  return refreshed;
+}
+
+export { addItemToShoppingList };
