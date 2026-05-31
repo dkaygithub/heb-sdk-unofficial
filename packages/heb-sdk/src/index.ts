@@ -102,6 +102,7 @@ export {
 export {
     getShoppingList,
     getShoppingLists,
+    addItemToShoppingList,
     formatShoppingList,
     formatShoppingLists,
     type GetShoppingListOptions,
