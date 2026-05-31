@@ -265,6 +265,7 @@ export interface GetShoppingListOptions {
  * lists.forEach(list => console.log(`- ${list.name} (${list.itemCount} items)`));
  */
 export async function getShoppingLists(session: HEBSession): Promise<ShoppingListsResult> {
+  logDebug(session, "getShoppingLists start", {});
   const response = await persistedQuery<RawShoppingListsResponse>(
     session,
     'getShoppingListsV2',
@@ -289,6 +290,13 @@ export async function getShoppingLists(session: HEBSession): Promise<ShoppingLis
   }));
 
   const pageInfo: ShoppingListsPageInfo = {
+    // Log pagination details for debugging
+    logDebug(session, "getShoppingLists pageInfo", { pageInfo: {
+      page: data.thisPage.page,
+      size: data.thisPage.size,
+      totalCount: data.thisPage.totalCount,
+      hasMore: Boolean(data.nextPage)
+    } });
     page: data.thisPage.page,
     size: data.thisPage.size,
     totalCount: data.thisPage.totalCount,
@@ -322,6 +330,7 @@ export async function getShoppingList(
   listId: string,
   options: GetShoppingListOptions = {}
 ): Promise<ShoppingListDetails> {
+  logDebug(session, "getShoppingList start", { listId });
   const {
     page = 0,
     size = 500,
