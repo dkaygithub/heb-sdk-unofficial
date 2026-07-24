@@ -79,14 +79,16 @@ interface RawShoppingListResponse {
         maximumQuantity: number;
         groupHeader: string;
         created: string;
-        itemPrice: {
+        // The mobile schema's ShoppingListItemV2 carries no product or price
+        // subtree — only the web host returns these.
+        itemPrice?: {
           totalAmount: number;
           listPrice: number;
           salePrice: number;
           onSale: boolean;
           rawTotalPrice: number;
         };
-        product: {
+        product?: {
           id: string;
           fullDisplayName: string;
           brand: {
@@ -168,10 +170,13 @@ export interface ShoppingListsResult {
 export interface ShoppingListItem {
   /** Unique item ID within the list */
   id: string;
-  /** Product ID */
-  productId: string;
-  /** Product name */
-  name: string;
+  /**
+   * Product ID. Absent on mobile (bearer) sessions: the mobile schema's
+   * `ShoppingListItemV2` exposes no product subtree.
+   */
+  productId?: string;
+  /** Product name. Absent on mobile (bearer) sessions — see {@link productId}. */
+  name?: string;
   /** Brand name (if available) */
   brand?: string;
   /** Whether item is checked off */
@@ -184,8 +189,8 @@ export interface ShoppingListItem {
   note?: string;
   /** Category/group header */
   category: string;
-  /** Price information */
-  price: {
+  /** Price information. Absent on mobile (bearer) sessions — see {@link productId}. */
+  price?: {
     /** Total price for quantity */
     total: number;
     /** List price per unit */
@@ -195,8 +200,8 @@ export interface ShoppingListItem {
     /** Whether item is on sale */
     onSale: boolean;
   };
-  /** Inventory status */
-  inStock: boolean;
+  /** Inventory status. Absent on mobile (bearer) sessions — see {@link productId}. */
+  inStock?: boolean;
   /** Image URL */
   imageUrl?: string;
 }
@@ -290,13 +295,6 @@ export async function getShoppingLists(session: HEBSession): Promise<ShoppingLis
   }));
 
   const pageInfo: ShoppingListsPageInfo = {
-    // Log pagination details for debugging
-    logDebug(session, "getShoppingLists pageInfo", { pageInfo: {
-      page: data.thisPage.page,
-      size: data.thisPage.size,
-      totalCount: data.thisPage.totalCount,
-      hasMore: Boolean(data.nextPage)
-    } });
     page: data.thisPage.page,
     size: data.thisPage.size,
     totalCount: data.thisPage.totalCount,
@@ -305,6 +303,8 @@ export async function getShoppingLists(session: HEBSession): Promise<ShoppingLis
     hasMore: Boolean(data.nextPage),
     nextPage: data.nextPage?.page ?? undefined,
   };
+
+  logDebug(session, 'getShoppingLists pageInfo', { pageInfo });
 
   return { lists, pageInfo };
 }
@@ -379,25 +379,32 @@ export async function getShoppingList(
     },
     createdAt: new Date(data.created),
     updatedAt: new Date(data.updated),
+    // `product`/`itemPrice` only come back from the web host. On a mobile
+    // (bearer) session ShoppingListItemV2 has neither, so those fields are left
+    // undefined rather than crashing on a missing subtree.
     items: data.itemPage.items.map(item => ({
       id: item.id,
-      productId: item.product.id,
-      name: item.product.fullDisplayName,
-      brand: item.product.brand?.name,
+      productId: item.product?.id,
+      name: item.product?.fullDisplayName,
+      brand: item.product?.brand?.name,
       checked: item.checked,
       quantity: item.quantity,
       weight: item.weight ?? undefined,
       note: item.note ?? undefined,
       category: item.groupHeader,
-      price: {
-        total: item.itemPrice.totalAmount,
-        listPrice: item.itemPrice.listPrice,
-        salePrice: item.itemPrice.salePrice,
-        onSale: item.itemPrice.onSale,
-      },
-      inStock: item.product.inventory.inventoryState === 'IN_STOCK',
-      imageUrl: item.product.productImageUrls.find(img => img.size === 'SMALL')?.url
-        ?? item.product.productImageUrls[0]?.url,
+      price: item.itemPrice
+        ? {
+            total: item.itemPrice.totalAmount,
+            listPrice: item.itemPrice.listPrice,
+            salePrice: item.itemPrice.salePrice,
+            onSale: item.itemPrice.onSale,
+          }
+        : undefined,
+      inStock: item.product
+        ? item.product.inventory.inventoryState === 'IN_STOCK'
+        : undefined,
+      imageUrl: item.product?.productImageUrls.find(img => img.size === 'SMALL')?.url
+        ?? item.product?.productImageUrls[0]?.url,
     })),
     pageInfo: {
       page: pageValue,
@@ -436,7 +443,11 @@ export function formatShoppingList(list: ShoppingListDetails): string {
   const itemsList = list.items.map((item, i) => {
     const priceStr = item.price?.total ? ` - ${formatCurrency(item.price.total)}` : '';
     const checked = item.checked ? ' [x]' : ' [ ]';
-    return `${i + 1}.${checked} ${item.name}${priceStr} (ID: ${item.productId})`;
+    // Mobile sessions have no product subtree, so fall back to the note and
+    // omit the ID rather than printing "undefined".
+    const label = item.name ?? item.note ?? '(unnamed item)';
+    const idStr = item.productId ? ` (ID: ${item.productId})` : '';
+    return `${i + 1}.${checked} ${label}${priceStr}${idStr}`;
   }).join('\n');
 
   return `**${list.name}** (${list.items.length} items)\n\n${itemsList}`;
@@ -533,5 +544,3 @@ export async function addItemToShoppingList(
   });
   return refreshed;
 }
-
-export { addItemToShoppingList };

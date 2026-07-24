@@ -2,6 +2,7 @@ import { logDebug } from './logger.js';
 import { ensureFreshSession, normalizeHeaders, resolveEndpoint } from './session.js';
 import type { HEBSession } from './types.js';
 import { GRAPHQL_HASHES, MOBILE_GRAPHQL_HASHES } from './types.js';
+import { MOBILE_QUERY_DOCUMENTS, type MobileQueryDocument } from './mobile-queries.js';
 
 /**
  * GraphQL request payload structure.
@@ -9,6 +10,11 @@ import { GRAPHQL_HASHES, MOBILE_GRAPHQL_HASHES } from './types.js';
 export interface GraphQLPayload {
   operationName: string;
   variables: Record<string, unknown>;
+  /**
+   * Full query document. Mutually exclusive with a persisted-query hash in
+   * practice — send this when the operation has no usable hash for the host.
+   */
+  query?: string;
   extensions?: {
     persistedQuery?: {
       version: number;
@@ -80,6 +86,21 @@ export async function persistedQuery<T>(
   operationName: string,
   variables: Record<string, unknown>
 ): Promise<GraphQLResponse<T>> {
+  // Some operations have no hash the mobile host will honour. The mobile host
+  // does accept full query documents, so send those directly instead of a hash
+  // that is guaranteed (or merely likely) to miss. See MOBILE_QUERY_DOCUMENTS.
+  const document = session.authMode === 'bearer'
+    ? (MOBILE_QUERY_DOCUMENTS as Record<string, MobileQueryDocument | undefined>)[operationName]
+    : undefined;
+
+  if (document) {
+    return graphqlRequest<T>(session, {
+      operationName: document.operationName,
+      query: document.query,
+      variables,
+    });
+  }
+
   const { hash, resolvedOperationName } = resolvePersistedQuery(session, operationName);
 
   return graphqlRequest<T>(session, {
